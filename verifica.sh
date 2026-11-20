@@ -125,16 +125,22 @@ fi
 
 # 6. La scena viene davvero disegnata? L'app salva un'istantanea, si misura il globo
 if (( ! user_quit )) && pid=$(app_pid) && [[ -n $pid ]]; then
+  # Stampa la luminosità del globo, oppure "skip:<motivo>" se l'app dice che ora non si può
+  # verificare (schermo spento, sessione bloccata, Scrivania coperta): un'istantanea fatta in
+  # quei momenti è nera anche se tutto funziona
   check_render() {
-    rm -f "$SUPPORT/verifica.jpg"
+    rm -f "$SUPPORT/verifica.jpg" "$SUPPORT/verifica.skip"
     kill -USR1 "$pid" 2>/dev/null
-    for _ in {1..20}; do [[ -s "$SUPPORT/verifica.jpg" ]] && break; sleep 1; done
+    for _ in {1..20}; do [[ -s "$SUPPORT/verifica.jpg" || -s "$SUPPORT/verifica.skip" ]] && break; sleep 1; done
+    if [[ -s "$SUPPORT/verifica.skip" ]]; then print -r -- "skip:$(<"$SUPPORT/verifica.skip")"; return; fi
     [[ -s "$SUPPORT/verifica.jpg" ]] || { print -r -- "nessuna"; return; }
     "$BIN" --check-image "$SUPPORT/verifica.jpg" 2>/dev/null || print -r -- "illeggibile"
   }
   lum=$(check_render)
   log "luminosità del globo: $lum"
-  if [[ $lum != <->.<-> ]] || (( lum < 0.05 )); then
+  if [[ $lum == skip:* ]]; then
+    log "disegno non verificabile ora (${lum#skip:}): nessun intervento"
+  elif [[ $lum != <->.<-> ]] || (( lum < 0.05 )); then
     log "scena non disegnata: riavvio l'app e riprovo"
     launchctl kickstart -k "$AGENT"
     sleep 25

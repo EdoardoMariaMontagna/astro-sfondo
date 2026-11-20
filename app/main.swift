@@ -144,7 +144,6 @@ final class DesktopWindow: NSWindow {
 // Tiene lo sfondo di sistema uguale alla scena. macOS lo mostra al posto della nostra finestra
 // mentre si spostano i widget, in Mission Control e nei cambi di Scrivania: così non si nota.
 final class WallpaperSync {
-    private var useA: [String: Bool] = [:]
     private let defaults = UserDefaults.standard
 
     private func originalKey(_ screen: NSScreen) -> String { "originalWallpaper-\(screenID(screen))" }
@@ -161,19 +160,24 @@ final class WallpaperSync {
         rememberOriginal(for: screen)
         snapshotJPEG(window.webView) { jpeg in
             guard let jpeg else { return }
-            // macOS non ricarica un'immagine con lo stesso percorso: si alternano due file
+            // macOS non ricarica un'immagine con lo stesso percorso: si alternano due file, scrivendo
+            // sempre quello che lo schermo non sta usando. Nessuno dei due va mai cancellato: ogni
+            // Scrivania (Space) e la schermata di blocco ricordano il proprio percorso, e un file
+            // mancante si vede come un lampo di colore nel cambio di Scrivania.
             let id = screenID(screen)
-            let a = !(self.useA[id] ?? false)
-            self.useA[id] = a
-            let url = supportFolder.appendingPathComponent("sfondo-\(id)-\(a ? "a" : "b").jpg")
-            let previous = supportFolder.appendingPathComponent("sfondo-\(id)-\(a ? "b" : "a").jpg")
+            let a = supportFolder.appendingPathComponent("sfondo-\(id)-a.jpg")
+            let b = supportFolder.appendingPathComponent("sfondo-\(id)-b.jpg")
+            let current = NSWorkspace.shared.desktopImageURL(for: screen)?.standardizedFileURL
+            let url = current == a.standardizedFileURL ? b : a
             do {
                 try jpeg.write(to: url, options: .atomic)
                 try NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [
                     .imageScaling: NSImageScaling.scaleProportionallyUpOrDown.rawValue,
                     .allowClipping: true,
                 ])
-                try? FileManager.default.removeItem(at: previous)
+                // l'altro file resta come seconda istantanea più recente, per le Scrivanie che lo usano
+                let other = url == a ? b : a
+                if !FileManager.default.fileExists(atPath: other.path) { try? jpeg.write(to: other, options: .atomic) }
             } catch {
                 NSLog("AstroSfondo: impossibile aggiornare lo sfondo di sistema: \(error)")
             }
@@ -289,6 +293,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                                object: nil, queue: .main) { [weak self] _ in
             self?.buildWindows()
         }
+        // Ogni Scrivania (Space) ha il proprio sfondo di sistema: arrivandoci lo si aggiorna subito
+        workspace.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil,
+                              queue: .main) { [weak self] _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self?.syncWallpaper() }
+        }
         NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification,
                                                object: nil, queue: .main) { [weak self] _ in
             self?.applyPause()
@@ -318,9 +327,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         windows.forEach { wallpaper.update($0) }
     }
 
+    // Istantanea di controllo per verifica.sh. A schermo spento, sessione bloccata o Scrivania
+    // coperta WebKit non disegna e l'istantanea sarebbe nera: si risponde "non verificabile"
+    // invece di far credere a un guasto
     private func writeVerificationSnapshot() {
-        guard let webView = windows.first?.webView else { return }
-        snapshotJPEG(webView) { jpeg in
+        guard let window = windows.first else { return }
+        let session = CGSessionCopyCurrentDictionary() as? [String: Any]
+        let locked = (session?["CGSSessionScreenIsLocked"] as? Bool) ?? false
+        var reason: String?
+        if screensAsleep || CGDisplayIsAsleep(CGMainDisplayID()) != 0 { reason = "schermo spento" }
+        else if locked { reason = "sessione bloccata" }
+        else if !window.occlusionState.contains(.visible) { reason = "Scrivania coperta da altre finestre" }
+        if let reason {
+            try? reason.write(to: supportFolder.appendingPathComponent("verifica.skip"), atomically: true, encoding: .utf8)
+            return
+        }
+        snapshotJPEG(window.webView) { jpeg in
             try? jpeg?.write(to: supportFolder.appendingPathComponent("verifica.jpg"), options: .atomic)
         }
     }
