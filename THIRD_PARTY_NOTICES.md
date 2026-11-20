@@ -42,6 +42,9 @@ Un buon contributo al progetto sarebbe sostituirle con immagini di pubblico domi
 (ad esempio *Blue Marble*, *Black Marble* e il *CGI Moon Kit*), che si potrebbero includere
 direttamente nel repository.
 
+L'anteprima `docs/anteprima.jpg` del README è un'istantanea dell'app e quindi contiene queste
+immagini, ridotte e combinate nella scena. Andrà rigenerata quando saranno sostituite.
+
 ## Algoritmi astronomici
 
 Le formule di `web/astro.js` seguono *How to compute planetary positions* di Paul Schlyter,

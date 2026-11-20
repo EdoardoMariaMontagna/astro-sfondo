@@ -3,6 +3,10 @@
 Sfondo animato per macOS che mostra la Terra, la Luna e le stagioni **come sono in questo
 istante**: una sorta di calendario perpetuo astronomico sulla Scrivania.
 
+![Astro Sfondo il 21 dicembre 2026 alle 17:00: solstizio d'inverno, asse terrestre inclinato lontano dal Sole, Europa già al buio con le luci delle città, Luna gibbosa crescente](docs/anteprima.jpg)
+
+*Il solstizio d'inverno 2026 alle 17:00 (ora italiana), con la località predefinita Greenwich.*
+
 > **English summary.** A live macOS desktop wallpaper showing the Earth as it is right now:
 > real rotation, day/night terminator with city lights, axial tilt relative to the Sun through
 > the seasons, the Moon at its true position and phase, a heliocentric orrery and an almanac
