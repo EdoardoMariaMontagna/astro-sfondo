@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Edoardo Maria Montagna
 #
-# Installa Astro Sfondo: scarica le immagini, compila l'app in ~/Applications e attiva
+# Installa Astro Sfondo: scarica le immagini, compila l'app in /Applications e attiva
 # l'avvio automatico all'accesso e la verifica giornaliera. Si può rilanciare senza problemi.
 set -euo pipefail
 cd "${0:A:h}"
@@ -13,7 +13,7 @@ if ! xcrun --find swiftc >/dev/null 2>&1; then
 fi
 
 ./scarica-risorse.sh
-./build.sh
+ASTRO_NO_RESTART=1 ./build.sh # l'avvio automatico viene ricaricato qui sotto
 
 mkdir -p "$HOME/Library/LaunchAgents" "$HOME/Library/Logs/AstroSfondo"
 for name in local.astrosfondo local.astrosfondo.verifica; do

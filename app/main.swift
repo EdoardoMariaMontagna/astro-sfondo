@@ -213,13 +213,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return args[i + 1]
     }
 
+    private static let showMenuNotification = Notification.Name("local.astrosfondo.mostraMenu")
+
+    // Aperta con doppio clic dal Finder e non da launchd: se l'avvio automatico è installato,
+    // si lascia l'app a launchd (che la riavvia se si chiude per errore) e si chiede alla copia
+    // in esecuzione di aprire il suo menu. Così non partono mai due sfondi sovrapposti.
+    private func handOverToLaunchd() -> Bool {
+        guard ProcessInfo.processInfo.environment["XPC_SERVICE_NAME"] != "local.astrosfondo",
+              argument("--snapshot") == nil, argument("--query") == nil else { return false }
+        let agent = "gui/\(getuid())/local.astrosfondo"
+        func launchctl(_ args: [String]) -> Int32 {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+            p.arguments = args
+            p.standardOutput = FileHandle.nullDevice
+            p.standardError = FileHandle.nullDevice
+            guard (try? p.run()) != nil else { return -1 }
+            p.waitUntilExit()
+            return p.terminationStatus
+        }
+        guard launchctl(["print", agent]) == 0 else { return false } // avvio automatico non installato
+        _ = launchctl(["kickstart", agent]) // la avvia se era stata chiusa dal menu, altrimenti non fa nulla
+        DistributedNotificationCenter.default().postNotificationName(Self.showMenuNotification, object: nil,
+                                                                      userInfo: nil, deliverImmediately: true)
+        return true
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if handOverToLaunchd() {
+            NSApp.terminate(nil)
+            return
+        }
         buildWindows()
         if let path = argument("--snapshot") {
             takeSnapshot(to: path)
             return
         }
         setupStatusItem()
+        DistributedNotificationCenter.default().addObserver(forName: Self.showMenuNotification, object: nil,
+                                                            queue: .main) { [weak self] _ in
+            self?.statusItem?.button?.performClick(nil)
+        }
 
         // Sfondo di sistema: la prima volta appena la pagina è pronta, poi ogni 3 minuti
         // (in 3 minuti la Terra ruota di 0,75°: la differenza non si vede)

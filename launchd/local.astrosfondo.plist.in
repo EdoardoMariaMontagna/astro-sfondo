@@ -6,7 +6,7 @@
 	<string>local.astrosfondo</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>__HOME__/Applications/AstroSfondo.app/Contents/MacOS/AstroSfondo</string>
+		<string>/Applications/Astro Sfondo.app/Contents/MacOS/AstroSfondo</string>
 	</array>
 	<!-- parte all'accesso; se si chiude per errore riparte, ma non se esci dal menu -->
 	<key>RunAtLoad</key>

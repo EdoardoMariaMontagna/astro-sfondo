@@ -10,7 +10,7 @@
 set -uo pipefail
 cd "${0:A:h}"
 
-APP="$HOME/Applications/AstroSfondo.app"
+APP="/Applications/Astro Sfondo.app"
 BIN="$APP/Contents/MacOS/AstroSfondo"
 SUPPORT="$HOME/Library/Application Support/AstroSfondo"
 STATE="$SUPPORT/verifica-stato"
@@ -95,14 +95,16 @@ if ! codesign --verify --strict "$APP" >> "$LOG" 2>&1; then
   needs_repair=1
 fi
 
-# 4. Blocchi di Gatekeeper dall'ultima verifica (al massimo 26 ore)
+# 4. Blocchi di Gatekeeper dall'ultima verifica (al massimo 26 ore). Contano solo i rifiuti veri
+# di syspolicyd (avviso mostrato o rifiuto registrato), non le righe "would not allow" del kernel:
+# quelle compaiono anche quando un avvio si sovrappone a una reinstallazione, e poi l'app parte.
 now=$(date +%s)
 since=$(( ${st[lastrun]:-0} > now - 93600 ? ${st[lastrun]:-0} : now - 93600 ))
 blocks=$(/usr/bin/log show --style compact --start "$(date -r $since '+%Y-%m-%d %H:%M:%S')" \
-  --predicate '(process == "syspolicyd" OR process == "kernel") AND eventMessage CONTAINS[c] "astrosfondo" AND (eventMessage CONTAINS[c] "not allow" OR eventMessage CONTAINS[c] "rejection" OR eventMessage CONTAINS[c] "Prompt shown")' \
+  --predicate 'process == "syspolicyd" AND eventMessage CONTAINS "local.astrosfondo" AND (eventMessage CONTAINS "Prompt shown" OR eventMessage CONTAINS "denial breadcrumb")' \
   2>/dev/null | grep -c '^20')
 if (( blocks > 0 )); then
-  errors+=("Gatekeeper ha bloccato l'app $blocks volte")
+  errors+=("Gatekeeper ha rifiutato l'app $blocks volte")
   needs_repair=1
 fi
 

@@ -1,3 +1,5 @@
+<img src="app/AppIcon-1024.png" alt="Icona di Astro Sfondo: sistema solare stilizzato" width="128" align="right">
+
 # Astro Sfondo
 
 Sfondo animato per macOS che mostra la Terra, la Luna e le stagioni **come sono in questo
@@ -57,16 +59,26 @@ cd astro-sfondo
 ```
 
 `install.sh` scarica le immagini di Terra e Luna (vedi
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)), compila l'app in `~/Applications` e attiva
-due avvii automatici: l'app all'accesso e la verifica giornaliera.
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)), compila l'app in `/Applications/Astro Sfondo.app`
+(serve un utente amministratore) e attiva due avvii automatici: l'app all'accesso e la verifica
+giornaliera.
 
 Per disinstallare, rimettendo lo sfondo precedente: `./uninstall.sh`.
+
+### Firma e Gatekeeper
+
+L'app è compilata e firmata "ad hoc" sul tuo Mac: non ha l'attributo di quarantena dei file
+scaricati, quindi Gatekeeper la autorizza senza avvisi. Non serve, e non è consigliabile,
+disattivare Gatekeeper o usare "Apri comunque". Una firma Developer ID con notarizzazione Apple
+servirebbe solo per distribuire l'app già compilata, non per chi la compila da questo repository.
 
 ## Uso e personalizzazione
 
 - L'icona del **mappamondo** nella barra dei menu mostra l'esito dell'ultima verifica e permette
   di ricaricare lo sfondo, mettere in pausa le animazioni o uscire. Uscendo dal menu si rimette
   lo sfondo originale.
+- Aprire **Astro Sfondo** da `/Applications` o dal Launchpad la riavvia se era stata chiusa,
+  oppure apre il suo menu se è già attiva: non partono mai due sfondi sovrapposti.
 - Il luogo (predefinito: Greenwich), i fotogrammi al secondo e la distanza della Luna sono in
   `web/config.js`. Per personalizzarli crea `web/config.local.js`, escluso da git, con solo le voci
   da cambiare:
@@ -76,7 +88,9 @@ Per disinstallare, rimettendo lo sfondo precedente: `./uninstall.sh`.
   Gli orari si mostrano nel fuso orario del Mac. Le modifiche a `web/` si vedono con "Ricarica lo
   sfondo", senza ricompilare. Per `app/main.swift` serve invece `./build.sh`.
 - Per provare altre date:
-  `~/Applications/AstroSfondo.app/Contents/MacOS/AstroSfondo --query "?t=2027-06-21T12:00:00Z&speed=3600"`
+  `"/Applications/Astro Sfondo.app/Contents/MacOS/AstroSfondo" --query "?t=2027-06-21T12:00:00Z&speed=3600"`
+- L'icona è disegnata da `app/icona.swift`: dopo averla modificata, `swift app/icona.swift` rigenera
+  `app/AppIcon.icns` e poi `./build.sh` la installa.
 
 ## Come funziona
 

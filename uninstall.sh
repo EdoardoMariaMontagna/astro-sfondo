@@ -6,7 +6,8 @@
 # La cartella del progetto non viene toccata.
 set -uo pipefail
 
-APP="$HOME/Applications/AstroSfondo.app"
+APP="/Applications/Astro Sfondo.app"
+LEGACY="$HOME/Applications/AstroSfondo.app" # posizione delle prime versioni
 
 # Prima si fermano app e verifica, altrimenti l'app reimposterebbe la propria istantanea
 for name in local.astrosfondo.verifica local.astrosfondo; do
@@ -14,8 +15,10 @@ for name in local.astrosfondo.verifica local.astrosfondo; do
   rm -f "$HOME/Library/LaunchAgents/$name.plist"
 done
 
-[[ -x "$APP/Contents/MacOS/AstroSfondo" ]] && "$APP/Contents/MacOS/AstroSfondo" --restore-wallpaper
+for bundle in "$APP" "$LEGACY"; do
+  [[ -x "$bundle/Contents/MacOS/AstroSfondo" ]] && { "$bundle/Contents/MacOS/AstroSfondo" --restore-wallpaper; break; }
+done
 
-rm -rf "$APP" "$HOME/Library/Application Support/AstroSfondo" "$HOME/Library/Logs/AstroSfondo"
+rm -rf "$APP" "$LEGACY" "$HOME/Library/Application Support/AstroSfondo" "$HOME/Library/Logs/AstroSfondo"
 defaults delete local.astrosfondo 2>/dev/null
 echo "Astro Sfondo è stato rimosso e lo sfondo precedente ripristinato."
