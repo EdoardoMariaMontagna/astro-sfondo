@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>local.astrosfondo.verifica</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/zsh</string>
+		<string>__PROJECT__/verifica.sh</string>
+	</array>
+	<!-- a ogni accesso e ogni giorno alle 13; se il Mac dorme, al risveglio -->
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>13</integer>
+		<key>Minute</key>
+		<integer>0</integer>
+	</dict>
+	<key>LimitLoadToSessionType</key>
+	<string>Aqua</string>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>LowPriorityIO</key>
+	<true/>
+	<key>Nice</key>
+	<integer>10</integer>
+	<key>StandardOutPath</key>
+	<string>__HOME__/Library/Logs/AstroSfondo/launchd-verifica.log</string>
+	<key>StandardErrorPath</key>
+	<string>__HOME__/Library/Logs/AstroSfondo/launchd-verifica.log</string>
+</dict>
+</plist>
