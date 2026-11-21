@@ -1,12 +1,8 @@
-# app compilata da build.sh
+# app compilata da build.sh e .dmg creato da release.sh
 build/
+dist/
 
 # impostazioni personali (vedi web/config.js)
 web/config.local.js
-
-# immagini scaricate da scarica-risorse.sh (licenza non dichiarata, non ridistribuite)
-web/textures/*.jpg
-web/textures/*.png
-web/textures/*.tmp
 
 .DS_Store

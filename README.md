@@ -13,7 +13,8 @@ istante**: una sorta di calendario perpetuo astronomico sulla Scrivania.
 > real rotation, day/night terminator with city lights, axial tilt relative to the Sun through
 > the seasons, the Moon at its true position and phase, a heliocentric orrery and an almanac
 > panel (sunrise/sunset, season, moon phases). Native Swift wrapper around a WebGL page
-> (three.js), with low-precision ephemerides validated against PyEphem. UI is in Italian;
+> (three.js), with low-precision ephemerides validated against PyEphem and NASA public-domain
+> imagery. Download the `.dmg` from Releases or build from source. UI is in Italian;
 > translations and contributions are welcome. License: AGPL-3.0-only.
 
 ## Cosa mostra
@@ -42,15 +43,29 @@ istante**: una sorta di calendario perpetuo astronomico sulla Scrivania.
 | Equinozi e solstizi | 7 min |
 | Alba e tramonto | 2 s |
 
-Elementi decorativi e non reali: le nuvole sono un'immagine fissa che scorre, e la distanza della
-Luna è ridotta per farla stare sullo schermo.
-
-## Requisiti
-
-- macOS 14 o successivo, Apple Silicon o Intel
-- Command Line Tools di Apple: `xcode-select --install`
+Elementi decorativi e non reali: le nuvole sono generate al computer (non sono quelle di oggi) e
+la distanza della Luna è ridotta per farla stare sullo schermo.
 
 ## Installazione
+
+Serve macOS 14 o successivo, su Mac Apple Silicon o Intel.
+
+### Dal file .dmg (consigliata)
+
+1. Scarica `AstroSfondo-<versione>.dmg` dalla pagina
+   [Releases](https://github.com/EdoardoMariaMontagna/astro-sfondo/releases).
+2. Aprilo e trascina **Astro Sfondo** in **Applicazioni**.
+3. Apri Astro Sfondo da Applicazioni. La prima volta macOS lo blocca, perché l'app non è firmata
+   con un certificato Apple a pagamento: vai in **Impostazioni di Sistema → Privacy e sicurezza**,
+   scorri fino al messaggio su Astro Sfondo e scegli **Apri comunque**. Serve una volta sola.
+4. Lo sfondo parte e da allora si avvia a ogni accesso (lo si disattiva dal menu).
+
+Per disinstallare: dal menu del mappamondo togli la spunta da **Apri all'accesso**, scegli
+**Esci da Astro Sfondo** (rimette lo sfondo di prima) e sposta l'app nel Cestino.
+
+### Dai sorgenti
+
+Servono anche i Command Line Tools di Apple (`xcode-select --install`).
 
 ```bash
 git clone https://github.com/EdoardoMariaMontagna/astro-sfondo.git
@@ -58,53 +73,50 @@ cd astro-sfondo
 ./install.sh
 ```
 
-`install.sh` scarica le immagini di Terra e Luna (vedi
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)), compila l'app in `/Applications/Astro Sfondo.app`
-(serve un utente amministratore) e attiva due avvii automatici: l'app all'accesso e la verifica
-giornaliera.
+`install.sh` compila l'app in `/Applications/Astro Sfondo.app` (serve un utente amministratore) e
+attiva due avvii automatici: l'app all'accesso, che launchd riavvia se si chiude per errore, e
+una verifica giornaliera che controlla che tutto funzioni e ripara ricompilando dai sorgenti.
+Compilata sul proprio Mac, l'app non ha il marchio di quarantena e Gatekeeper non chiede nulla.
 
 Per disinstallare, rimettendo lo sfondo precedente: `./uninstall.sh`.
 
-### Firma e Gatekeeper
-
-L'app è compilata e firmata "ad hoc" sul tuo Mac: non ha l'attributo di quarantena dei file
-scaricati, quindi Gatekeeper la autorizza senza avvisi. Non serve, e non è consigliabile,
-disattivare Gatekeeper o usare "Apri comunque". Una firma Developer ID con notarizzazione Apple
-servirebbe solo per distribuire l'app già compilata, non per chi la compila da questo repository.
-
 ## Uso e personalizzazione
 
-- L'icona del **mappamondo** nella barra dei menu mostra l'esito dell'ultima verifica e permette
-  di ricaricare lo sfondo, mettere in pausa le animazioni o uscire. Uscendo dal menu si rimette
-  lo sfondo originale.
-- Aprire **Astro Sfondo** da `/Applications` o dal Launchpad la riavvia se era stata chiusa,
-  oppure apre il suo menu se è già attiva: non partono mai due sfondi sovrapposti.
-- Il luogo (predefinito: Greenwich), i fotogrammi al secondo e la distanza della Luna sono in
-  `web/config.js`. Per personalizzarli crea `web/config.local.js`, escluso da git, con solo le voci
-  da cambiare:
+- L'icona del **mappamondo** nella barra dei menu permette di ricaricare lo sfondo, mettere in
+  pausa le animazioni, scegliere se aprirlo all'accesso o uscire. Uscendo dal menu si rimette lo
+  sfondo originale. Nell'installazione dai sorgenti mostra anche l'esito dell'ultima verifica.
+- Aprire **Astro Sfondo** da Applicazioni o dal Launchpad quando è già attivo ne apre il menu:
+  non partono mai due sfondi sovrapposti.
+- **Personalizza luogo e impostazioni…** nel menu apre il file delle impostazioni personali, con
+  solo le voci da cambiare rispetto a `web/config.js` (luogo, fotogrammi al secondo, distanza della
+  Luna). Ad esempio:
   ```js
   export const CONFIG = { location: { name: 'Napoli', lat: 40.8518, lon: 14.2681 } };
   ```
-  Gli orari si mostrano nel fuso orario del Mac. Le modifiche a `web/` si vedono con "Ricarica lo
-  sfondo", senza ricompilare. Per `app/main.swift` serve invece `./build.sh`.
+  Dopo averlo salvato, scegli **Ricarica lo sfondo**. Il luogo predefinito è Greenwich e gli
+  orari si mostrano nel fuso orario del Mac. Il file è `web/config.local.js` (escluso da git)
+  nell'installazione dai sorgenti, `~/Library/Application Support/AstroSfondo/config.local.js`
+  in quella dal `.dmg`.
 - Per provare altre date:
   `"/Applications/Astro Sfondo.app/Contents/MacOS/AstroSfondo" --query "?t=2027-06-21T12:00:00Z&speed=3600"`
-- L'icona è disegnata da `app/icona.swift`: dopo averla modificata, `swift app/icona.swift` rigenera
-  `app/AppIcon.icns` e poi `./build.sh` la installa.
 
 ## Come funziona
 
 ```
 app/main.swift   finestra al livello della Scrivania (sotto le icone, su tutti gli Spaces)
-                 con una WKWebView; serve web/ con lo schema astro:// perché WebGL
-                 richiede texture della stessa origine; ogni 3 minuti imposta come sfondo
-                 di sistema un'istantanea della scena, che macOS mostra mentre si spostano
-                 i widget o in Mission Control
+                 con una WKWebView; serve web/ con lo schema astro:// perché WebGL richiede
+                 texture della stessa origine; ogni 3 minuti e a ogni cambio di Scrivania
+                 imposta come sfondo di sistema un'istantanea della scena, che macOS mostra
+                 mentre si spostano i widget, in Mission Control e nella schermata di blocco
+app/icona.swift  disegna l'icona (swift app/icona.swift rigenera app/AppIcon.icns)
 web/astro.js     effemeridi (Sole, Luna, fasi, stagioni, alba e tramonto)
 web/main.js      scena three.js: eclittica orizzontale, scena che ruota con il Sole
                  (illuminazione sempre da sinistra), asse inclinato, rotazione siderale
+web/nuvole.js    nuvole generate all'avvio con rumore frattale 3D, distribuite per latitudine
 web/panel.js     pannello-calendario
 web/orrery.js    planetario 2D
+build.sh         compila e installa l'app per l'uso dai sorgenti
+release.sh       crea il .dmg universale (Apple Silicon e Intel) per le Releases
 verifica.sh      verifica automatica (all'accesso e alle 13): app attiva, firma, blocchi di
                  Gatekeeper, scena davvero disegnata (luminosità del globo in un'istantanea),
                  sfondo di sistema; ripara riavviando o ricompilando dai sorgenti locali;
@@ -114,14 +126,16 @@ verifica.sh      verifica automatica (all'accesso e alle 13): app attiva, firma,
 L'app non fa connessioni di rete. Consumo misurato su un M1 Pro: circa il 13% di un core e
 340 MB di memoria, con pausa automatica a schermo spento o Scrivania coperta.
 
+Le immagini di Terra e Luna sono della NASA, di pubblico dominio: fonti e crediti in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 ## Contribuire
 
 Idee e richieste di modifica sono benvenute, per esempio:
 
-- immagini di pubblico dominio NASA al posto di quelle attuali (vedi
-  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md));
 - traduzione dell'interfaccia;
 - stelle e costellazioni reali da un catalogo;
+- nuvole reali da una fonte di pubblico dominio;
 - aggiornamento a una versione più recente di three.js.
 
 ## Licenza

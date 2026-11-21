@@ -3,6 +3,7 @@
 //
 // AstroSfondo: mostra la pagina animata in web/ come sfondo della Scrivania, dietro le icone.
 import Cocoa
+import ServiceManagement
 import WebKit
 
 // Cartella della pagina: quella del progetto (modificabile senza ricompilare),
@@ -24,7 +25,23 @@ let supportFolder: URL = {
 }()
 let verifyLogURL = FileManager.default.homeDirectoryForCurrentUser
     .appendingPathComponent("Library/Logs/AstroSfondo/verifica.log")
+let launchAgent = "gui/\(getuid())/local.astrosfondo"
 let verifyAgent = "gui/\(getuid())/local.astrosfondo.verifica"
+// Impostazioni personali per chi installa dal .dmg: l'interno dell'app firmata non è modificabile
+let personalConfig = supportFolder.appendingPathComponent("config.local.js")
+
+// Esegue launchctl e ne restituisce il codice di uscita (0 = servizio presente o comando riuscito)
+@discardableResult
+func launchctl(_ args: [String]) -> Int32 {
+    let p = Process()
+    p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+    p.arguments = args
+    p.standardOutput = FileHandle.nullDevice
+    p.standardError = FileHandle.nullDevice
+    guard (try? p.run()) != nil else { return -1 }
+    p.waitUntilExit()
+    return p.terminationStatus
+}
 
 func screenID(_ screen: NSScreen) -> String {
     (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.stringValue ?? "0"
@@ -98,8 +115,11 @@ final class LocalFiles: NSObject, WKURLSchemeHandler {
     func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
         guard let url = task.request.url else { return }
         let relative = url.path.isEmpty || url.path == "/" ? "index.html" : String(url.path.dropFirst())
-        let file = webRoot.appendingPathComponent(relative).standardizedFileURL
-        guard file.path.hasPrefix(webRoot.standardizedFileURL.path + "/"),
+        var file = webRoot.appendingPathComponent(relative).standardizedFileURL
+        if relative == "config.local.js", !FileManager.default.fileExists(atPath: file.path) {
+            file = personalConfig
+        }
+        guard file.path.hasPrefix(webRoot.standardizedFileURL.path + "/") || file == personalConfig,
               let data = try? Data(contentsOf: file) else {
             task.didFailWithError(URLError(.fileDoesNotExist))
             return
@@ -201,6 +221,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private var verifyItem: NSMenuItem?
     private var pauseItem: NSMenuItem?
+    private var loginItem: NSMenuItem?
     private var userPaused = false
     private var screensAsleep = false
     private let configuration: WKWebViewConfiguration = {
@@ -225,26 +246,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func handOverToLaunchd() -> Bool {
         guard ProcessInfo.processInfo.environment["XPC_SERVICE_NAME"] != "local.astrosfondo",
               argument("--snapshot") == nil, argument("--query") == nil else { return false }
-        let agent = "gui/\(getuid())/local.astrosfondo"
-        func launchctl(_ args: [String]) -> Int32 {
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-            p.arguments = args
-            p.standardOutput = FileHandle.nullDevice
-            p.standardError = FileHandle.nullDevice
-            guard (try? p.run()) != nil else { return -1 }
-            p.waitUntilExit()
-            return p.terminationStatus
-        }
-        guard launchctl(["print", agent]) == 0 else { return false } // avvio automatico non installato
-        _ = launchctl(["kickstart", agent]) // la avvia se era stata chiusa dal menu, altrimenti non fa nulla
+        guard launchctl(["print", launchAgent]) == 0 else { return false } // avvio automatico non installato
+        launchctl(["kickstart", launchAgent]) // la avvia se era stata chiusa dal menu, altrimenti non fa nulla
         DistributedNotificationCenter.default().postNotificationName(Self.showMenuNotification, object: nil,
                                                                       userInfo: nil, deliverImmediately: true)
         return true
     }
 
+    // Aperta direttamente dal .dmg o da Download (macOS la esegue da una copia temporanea, la
+    // "App Translocation"): l'avvio all'accesso e gli aggiornamenti non funzionerebbero da lì
+    private func mustBeMovedToApplications() -> Bool {
+        let path = Bundle.main.bundleURL.path
+        guard argument("--snapshot") == nil, path.hasPrefix("/Volumes/") || path.contains("/AppTranslocation/") else { return false }
+        let alert = NSAlert()
+        alert.messageText = "Sposta Astro Sfondo in Applicazioni"
+        alert.informativeText = "Trascina Astro Sfondo nella cartella Applicazioni e aprilo da lì: solo così può partire a ogni accesso."
+        alert.addButton(withTitle: "OK")
+        NSApp.activate()
+        alert.runModal()
+        return true
+    }
+
+    // L'avvio all'accesso è gestito da launchd quando l'app è installata dai sorgenti con install.sh
+    private var managedByLaunchd: Bool { launchctl(["print", launchAgent]) == 0 }
+
+    // Installazione dal .dmg: alla prima apertura da /Applications l'app si registra come
+    // elemento di login (Impostazioni di Sistema → Generali → Elementi login). Se poi l'utente lo
+    // disattiva dal menu, la scelta viene rispettata.
+    private func configureLoginItemOnFirstRun() {
+        let defaults = UserDefaults.standard
+        guard !managedByLaunchd, Bundle.main.bundleURL.path.hasPrefix("/Applications/"),
+              !defaults.bool(forKey: "loginItemConfigured") else { return }
+        try? SMAppService.mainApp.register()
+        defaults.set(true, forKey: "loginItemConfigured")
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if handOverToLaunchd() {
+        if mustBeMovedToApplications() || handOverToLaunchd() {
             NSApp.terminate(nil)
             return
         }
@@ -253,6 +291,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             takeSnapshot(to: path)
             return
         }
+        configureLoginItemOnFirstRun()
         setupStatusItem()
         DistributedNotificationCenter.default().addObserver(forName: Self.showMenuNotification, object: nil,
                                                             queue: .main) { [weak self] _ in
@@ -322,9 +361,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    // Con lo schermo spento o la Scrivania interamente coperta WebKit non disegna: un'istantanea
+    // presa in quel momento (per esempio subito dopo un riavvio) sarebbe nera, quindi si aspetta
     private func syncWallpaper() {
         guard !screensAsleep else { return }
-        windows.forEach { wallpaper.update($0) }
+        windows.filter { $0.occlusionState.contains(.visible) }.forEach { wallpaper.update($0) }
     }
 
     // Istantanea di controllo per verifica.sh. A schermo spento, sessione bloccata o Scrivania
@@ -351,17 +392,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         let menu = NSMenu()
         menu.delegate = self
-        let verify = menu.addItem(withTitle: "", action: nil, keyEquivalent: "")
-        verify.isEnabled = false
-        verifyItem = verify
-        menu.addItem(withTitle: "Verifica adesso", action: #selector(verifyNow), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Apri il registro delle verifiche", action: #selector(openVerifyLog), keyEquivalent: "").target = self
-        menu.addItem(.separator())
+        // Le voci della verifica automatica esistono solo nell'installazione dai sorgenti
+        if launchctl(["print", verifyAgent]) == 0 {
+            let verify = menu.addItem(withTitle: "", action: nil, keyEquivalent: "")
+            verify.isEnabled = false
+            verifyItem = verify
+            menu.addItem(withTitle: "Verifica adesso", action: #selector(verifyNow), keyEquivalent: "").target = self
+            menu.addItem(withTitle: "Apri il registro delle verifiche", action: #selector(openVerifyLog), keyEquivalent: "").target = self
+            menu.addItem(.separator())
+        }
         menu.addItem(withTitle: "Ricarica lo sfondo", action: #selector(reload), keyEquivalent: "r").target = self
         let pause = menu.addItem(withTitle: "Metti in pausa le animazioni", action: #selector(togglePause), keyEquivalent: "p")
         pause.target = self
         pauseItem = pause
-        menu.addItem(withTitle: "Mostra la cartella dello sfondo", action: #selector(reveal), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Personalizza luogo e impostazioni…", action: #selector(reveal), keyEquivalent: "").target = self
+        if !managedByLaunchd {
+            let login = menu.addItem(withTitle: "Apri all'accesso", action: #selector(toggleLoginItem), keyEquivalent: "")
+            login.target = self
+            loginItem = login
+        }
         menu.addItem(.separator())
         menu.addItem(withTitle: "Esci da Astro Sfondo", action: #selector(quit), keyEquivalent: "q").target = self
         item.menu = menu
@@ -371,6 +420,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         refreshVerifyStatus()
+        loginItem?.state = SMAppService.mainApp.status == .enabled ? .on : .off
+    }
+
+    @objc private func toggleLoginItem() {
+        let service = SMAppService.mainApp
+        if service.status == .enabled { try? service.unregister() } else { try? service.register() }
+        UserDefaults.standard.set(true, forKey: "loginItemConfigured")
     }
 
     // Icona e prima riga del menu riflettono l'esito dell'ultima verifica automatica
@@ -427,8 +483,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.terminate(nil)
     }
 
+    // Installazione dai sorgenti: si modifica web/config.local.js nel progetto. Installazione dal
+    // .dmg: si usa config.local.js nella cartella dati dell'app, creato qui con un modello.
     @objc private func reveal() {
-        NSWorkspace.shared.activateFileViewerSelecting([webRoot.appendingPathComponent("config.js")])
+        let projectConfig = webRoot.appendingPathComponent("config.local.js")
+        guard webRoot.path.hasPrefix(Bundle.main.bundleURL.path) else {
+            let exists = FileManager.default.fileExists(atPath: projectConfig.path)
+            NSWorkspace.shared.activateFileViewerSelecting([exists ? projectConfig : webRoot.appendingPathComponent("config.js")])
+            return
+        }
+        if !FileManager.default.fileExists(atPath: personalConfig.path) {
+            let template = """
+            // Impostazioni personali di Astro Sfondo. Togli "//" dalle righe da usare, cambia i valori,
+            // salva e scegli "Ricarica lo sfondo" dal menu dell'app.
+            export const CONFIG = {
+              // location: { name: 'Roma', lat: 41.9028, lon: 12.4964 },
+              // fps: 15,
+            };
+
+            """
+            try? template.write(to: personalConfig, atomically: true, encoding: .utf8)
+        }
+        NSWorkspace.shared.activateFileViewerSelecting([personalConfig])
     }
 
     private func takeSnapshot(to path: String) {

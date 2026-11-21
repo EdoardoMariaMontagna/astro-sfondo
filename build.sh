@@ -21,7 +21,7 @@ mkdir -p "$BUILD/Contents/MacOS" "$BUILD/Contents/Resources"
 
 # architettura del Mac che compila: Apple Silicon (arm64) o Intel (x86_64)
 swiftc -O -swift-version 5 -target "$(uname -m)-apple-macos14" \
-  -framework Cocoa -framework WebKit \
+  -framework Cocoa -framework WebKit -framework ServiceManagement \
   -o "$BUILD/Contents/MacOS/AstroSfondo" app/main.swift
 
 sed "s#__WEB_ROOT__#$PWD/web#" app/Info.plist > "$BUILD/Contents/Info.plist"

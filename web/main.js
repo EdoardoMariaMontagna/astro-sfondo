@@ -6,6 +6,7 @@ import * as A from './astro.js';
 import { CONFIG } from './config.js';
 import { createPanel } from './panel.js';
 import { drawOrrery } from './orrery.js';
+import { cloudPixels } from './nuvole.js';
 
 const RAD = Math.PI / 180;
 
@@ -51,6 +52,18 @@ function texture(file, color = true) {
   return t;
 }
 
+// Nuvole generate all'avvio (vedi nuvole.js): riga 0 = polo sud, come le coordinate della sfera
+function cloudTexture(w = 1024, h = 512) {
+  const t = new THREE.DataTexture(cloudPixels(w, h), w, h, THREE.RGBAFormat);
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true;
+  t.wrapS = THREE.RepeatWrapping;
+  t.anisotropy = maxAniso;
+  t.needsUpdate = true;
+  return t;
+}
+
 // ---------------------------------------------------------------- shader comuni
 const worldVertex = /* glsl */ `
   varying vec2 vUv;
@@ -82,9 +95,9 @@ const earth = new THREE.Mesh(
   new THREE.SphereGeometry(1, 160, 80),
   new THREE.ShaderMaterial({
     uniforms: {
-      dayMap: { value: texture('earth_atmos_2048.jpg') },
-      nightMap: { value: texture('earth_lights_2048.png') },
-      specMap: { value: texture('earth_specular_2048.jpg', false) },
+      dayMap: { value: texture('terra_giorno.jpg') },
+      nightMap: { value: texture('terra_notte.jpg') },
+      specMap: { value: texture('terra_oceani.jpg', false) },
       sunDir: { value: SUN_DIR },
     },
     vertexShader: worldVertex,
@@ -123,7 +136,7 @@ earthSpin.add(earth);
 const clouds = new THREE.Mesh(
   new THREE.SphereGeometry(1.007, 128, 64),
   new THREE.ShaderMaterial({
-    uniforms: { cloudMap: { value: texture('earth_clouds_1024.png', false) }, sunDir: { value: SUN_DIR } },
+    uniforms: { cloudMap: { value: cloudTexture() }, sunDir: { value: SUN_DIR } },
     vertexShader: worldVertex,
     fragmentShader: /* glsl */ `
       uniform sampler2D cloudMap;
@@ -131,7 +144,7 @@ const clouds = new THREE.Mesh(
       varying vec2 vUv;
       varying vec3 vNormalW;
       void main() {
-        float a = texture2D(cloudMap, vUv).a; // l'immagine è tutta bianca: la densità è nell'alfa
+        float a = texture2D(cloudMap, vUv).r;
         float ndl = dot(normalize(vNormalW), sunDir);
         vec3 col = vec3(1.0) * (0.015 + 0.95 * max(ndl, 0.0));
         gl_FragColor = vec4(col, a * 0.7);
@@ -255,7 +268,7 @@ earthSpin.add(homeMarker);
 const moon = new THREE.Mesh(
   new THREE.SphereGeometry(0.273, 96, 48),
   new THREE.ShaderMaterial({
-    uniforms: { moonMap: { value: texture('moon_1024.jpg') }, sunDir: { value: SUN_DIR } },
+    uniforms: { moonMap: { value: texture('luna.jpg') }, sunDir: { value: SUN_DIR } },
     vertexShader: worldVertex,
     fragmentShader: /* glsl */ `
       uniform sampler2D moonMap;
